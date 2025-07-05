@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reaper AI Chat with Auto-Correct & Animation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background: #181c24;
+      font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+      margin: 0;
+    }
+    .container {
+      max-width: 420px;
+      margin: 40px auto;
+      background: #23283a;
+      border-radius: 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.29);
+      padding: 26px 14px 18px 14px;
+      border: 1.5px solid #343952;
+    }
+    h2 {
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #85b6ff;
+      margin-bottom: 8px;
+    }
+    .chatbox {
+      background: #20243a;
+      border-radius: 18px;
+      padding: 14px 12px 10px 12px;
+      border: 1px solid #343952;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.13);
+    }
+    .chat-messages {
+      max-height: 320px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .message {
+      display: flex;
+      align-items: flex-start;
+    }
+    .message.user { justify-content: flex-end; }
+    .message.reaper { justify-content: flex-start; }
+    .message .bubble {
+      padding: 7px 13px;
+      border-radius: 20px;
+      font-size: 1em;
+      max-width: 74%;
+      word-break: break-word;
+      border: 1px solid #343952;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+      transition: background 0.2s;
+    }
+    .message.user .bubble {
+      background: #273e31;
+      color: #bafbca;
+      border-top-right-radius: 32px;
+      border-bottom-right-radius: 32px;
+    }
+    .message.reaper .bubble {
+      background: #232c41;
+      color: #aed4ff;
+      border-top-left-radius: 32px;
+      border-bottom-left-radius: 32px;
+    }
+    .reaper-name { font-weight: bold; color: #6daaff; margin-right: 5px;}
+    .user-name { font-weight: bold; color: #2ae37b; margin-left: 5px;}
+    .chat-input-row { display: flex; gap: 8px; margin-top: 12px;}
+    .chat-input-row input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1.2px solid #49507e;
+      background: #23283a;
+      font-size: 1em;
+      color: #d9e7fa;
+      outline: none;
+      transition: border 0.18s;
+    }
+    .chat-input-row input[type="text"]:focus {
+      border: 1.5px solid #368fff;
+      background: #212434;
+    }
+    .chat-input-row button {
+      padding: 10px 15px;
+      border: none;
+      background: #368fff;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.13);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .chat-input-row button:hover {
+      background: #296dbe;
+      box-shadow: 0 3px 10px rgba(30,40,80,0.13);
+    }
+    .autocorrect-tip {
+      color: #368fff;
+      font-size: 0.95em;
+      margin-bottom: 7px;
+      margin-top: 5px;
+      text-align: right;
+      display: none;
+    }
+    .typewriter {
+      display: inline-block;
+      border-right: 2px solid #368fff;
+      white-space: pre;
+      overflow: hidden;
+      animation: blink-caret 0.7s steps(1) infinite;
+    }
+    @keyframes blink-caret {
+      0%, 100% { border-color: #368fff; }
+      50% { border-color: transparent; }
+    }
+    ::selection { background: #368fff33; }
+    @media (max-width: 500px) {
+      .container { max-width: 98vw; padding: 14px 2vw 10px 2vw;}
+      h2 { font-size: 1.18em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Reaper AI Chat</h2>
+    <div class="chatbox">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="autocorrect-tip" id="autocorrect-tip"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Type your message...">
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.onload = function() {
+      const chatInput = document.getElementById('chat-input');
+      const chatSend = document.getElementById('chat-send');
+      const chatMessages = document.getElementById('chat-messages');
+      const autocorrectTip = document.getElementById('autocorrect-tip');
+      let userName = null;
+      let awaitingName = true;
+
+      const aiReplies = {
+        "hi": "Hello! How can I help you?",
+        "hello": "Hi there! 😊",
+        "how are you": "I'm just a bunch of code, but thanks for asking!",
+        "what is your name": "My name is Reaper.",
+        "who made you": "I was created by REAPER0023.",
+        "what can you do": "I can chat with you, keep you company, and help you stay organized!",
+        "bye": "Goodbye! 👋",
+        "thank you": "You're welcome!",
+        "who are you": "I'm Reaper, your AI assistant.",
+        "what is ai": "AI stands for Artificial Intelligence, the simulation of human intelligence in machines."
+      };
+      const autoCorrectDict = {
+        "helo": "hello", "heelo": "hello", "hllo": "hello", "by": "bye",
+        "gudbye": "goodbye", "thak": "thank", "thakn": "thank", "whatt": "what",
+        "whta": "what", "yuo": "you", "reper": "reaper", "artifical": "artificial",
+        "inteligence": "intelligence", "assitent": "assistant", "chating": "chatting"
+      };
+      function autoCorrect(text) {
+        let words = text.split(/\b/);
+        let corrected = false;
+        for (let i = 0; i < words.length; i++) {
+          let lw = words[i].toLowerCase();
+          if (autoCorrectDict[lw]) {
+            words[i] = (words[i][0] === words[i][0]?.toUpperCase())
+              ? autoCorrectDict[lw][0].toUpperCase() + autoCorrectDict[lw].slice(1)
+              : autoCorrectDict[lw];
+            corrected = true;
+          }
+        }
+        return [words.join(''), corrected];
+      }
+      function normalize(text) {
+        return text.toLowerCase().trim().replace(/[^\w\s]/gi, "");
+      }
+      function typewriterEffect(element, text, delay = 18, callback) {
+        let i = 0;
+        element.textContent = '';
+        element.classList.add('typewriter');
+        function type() {
+          if (i < text.length) {
+            element.textContent += text.charAt(i);
+            i++;
+            setTimeout(type, delay);
+          } else {
+            element.classList.remove('typewriter');
+            if (callback) callback();
+          }
+        }
+        type();
+      }
+      function appendChat(author, text, animated = false) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${author}`;
+        if (author === 'user') {
+          const span = document.createElement('span');
+          span.className = "bubble";
+          if (animated) {
+            typewriterEffect(span, text);
+          } else {
+            span.textContent = text;
+          }
+          msgDiv.appendChild(span);
+          const uname = document.createElement('span');
+          uname.className = "user-name";
+          uname.textContent = userName ? userName : "You";
+          msgDiv.appendChild(uname);
+        } else {
+          const reaper = document.createElement('span');
+          reaper.className = "reaper-name";
+          reaper.textContent = "Reaper:";
+          msgDiv.appendChild(reaper);
+          const span = document.createElement('span');
+          span.className = "bubble";
+          if (animated) {
+            typewriterEffect(span, text);
+          } else {
+            span.textContent = text;
+          }
+          msgDiv.appendChild(span);
+        }
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function aiRespond(userMsg) {
+        if (awaitingName) {
+          userName = userMsg.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+          if (userName.length === 0) {
+            setTimeout(() => appendChat('reaper', "Sorry, I didn't catch your name. What's your name?", true), 400);
+            return;
+          }
+          awaitingName = false;
+          setTimeout(() => appendChat('reaper', `Nice to meet you, ${userName}! How can I help you today?`, true), 400);
+          return;
+        }
+        const norm = normalize(userMsg);
+        let reply = aiReplies[norm];
+        if (!reply) {
+          const fallback = [
+            "That's interesting, tell me more.",
+            "I'm not sure, but I'm always learning!",
+            "Can you rephrase that?",
+            "😄",
+            "Let's keep chatting!"
+          ];
+          reply = fallback[Math.floor(Math.random()*fallback.length)];
+        }
+        setTimeout(() => appendChat('reaper', reply, true), 450);
+      }
+
+      function sendChat() {
+        let val = chatInput.value.trim();
+        if (!val) return;
+        const [corrected, correctedFlag] = autoCorrect(val);
+        autocorrectTip.style.display = "none";
+        if (correctedFlag && corrected !== val) {
+          appendChat('user', corrected, true);
+          autocorrectTip.textContent = `Auto-corrected: "${val}" → "${corrected}"`;
+          autocorrectTip.style.display = "block";
+        } else {
+          appendChat('user', val, true);
+        }
+        chatInput.value = '';
+        aiRespond(correctedFlag ? corrected : val);
+      }
+
+      chatSend.onclick = sendChat;
+      chatInput.addEventListener('keydown', e => {if (e.key === 'Enter') sendChat();});
+
+      // Initial greeting from Reaper
+      appendChat('reaper', "Hello! What's your name?", true);
+      chatInput.focus();
+    };
+  </script>
+</body>
+</html>
